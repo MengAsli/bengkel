@@ -1,0 +1,6 @@
+{
+  "name": "Bikini Bottom Garage",
+  "description": "Sistem Manajemen Bengkel Motor Bikini Bottom Garage untuk mengelola mekanik, stok suku cadang, kendaraan, transaksi, dan histori servis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
