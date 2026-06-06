@@ -2,6 +2,7 @@ import express from "express";
 import * as path from "path";
 import * as fs from "fs";
 import { createServer as createViteServer } from "vite";
+import pg from "pg";
 
 const app = express();
 const PORT = 3000;
@@ -10,8 +11,159 @@ app.use(express.json());
 
 const DATA_FILE = path.resolve("src/db/data_store.json");
 
+// PostgreSQL/Supabase Pool Setup
+const { Pool } = pg;
+const dbUrl = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+let pool: pg.Pool | null = null;
+const isPlaceholderUrl = dbUrl && (
+  dbUrl.includes("[PASSWORD]") || 
+  dbUrl.includes("[HOST]") || 
+  dbUrl.includes("postgres_url") ||
+  dbUrl.includes("database_url")
+);
+
+if (dbUrl && !isPlaceholderUrl) {
+  try {
+    pool = new Pool({
+      connectionString: dbUrl,
+      ssl: { rejectUnauthorized: false } // Required for hosting platforms like Supabase / Neon
+    });
+    console.log("Supabase PostgreSQL Integration detected! Connection pool initialized successfully.");
+  } catch (err) {
+    console.error("⚠️ Failed to initialize Supabase connection pool:", err);
+    pool = null;
+  }
+} else {
+  console.log("ℹ️ Supabase integration is currently mirroring local storage. (To connect real cloud database, configure DATABASE_URL in Vercel settings or your .env file with your Supabase credentials).");
+}
+
+let inMemoryDb: any = null;
+
+// Load initial state from postgres
+async function loadFromPostgres() {
+  if (!pool) return;
+  console.log("Initializing database state query from Supabase Cloud...");
+  try {
+    const state: any = {
+      roles: (await pool.query("SELECT * FROM roles")).rows,
+      employees: (await pool.query("SELECT * FROM employees")).rows,
+      customers: (await pool.query("SELECT * FROM customers")).rows,
+      vehicle_categories: (await pool.query("SELECT * FROM vehicle_categories")).rows,
+      vehicles: (await pool.query("SELECT * FROM vehicles")).rows,
+      spareparts: (await pool.query("SELECT * FROM spareparts")).rows,
+      suppliers: (await pool.query("SELECT * FROM suppliers")).rows,
+      variants: (await pool.query("SELECT * FROM variants")).rows,
+      services: (await pool.query("SELECT * FROM services")).rows,
+      services_details: (await pool.query("SELECT * FROM services_details")).rows,
+      work_orders: (await pool.query("SELECT * FROM work_orders")).rows,
+      main_receipts: (await pool.query("SELECT * FROM main_receipts")).rows,
+      detail_receipt_services: (await pool.query("SELECT * FROM detail_receipt_services")).rows,
+      detail_receipt_spareparts: (await pool.query("SELECT * FROM detail_receipt_spareparts")).rows,
+      purchases: (await pool.query("SELECT * FROM purchases")).rows,
+      purchase_details: (await pool.query("SELECT * FROM purchase_details")).rows,
+      stock_movements: (await pool.query("SELECT * FROM stock_movements")).rows
+    };
+    
+    // Parse numeric fields database types back to JS numbers
+    state.roles.forEach((r: any) => r.salary = parseFloat(r.salary) || 0);
+    state.variants.forEach((v: any) => {
+      v.buying_price = parseFloat(v.buying_price) || 0;
+      v.selling_price = parseFloat(v.selling_price) || 0;
+    });
+    state.services_details.forEach((sd: any) => sd.price = parseFloat(sd.price) || 0);
+    state.main_receipts.forEach((mr: any) => {
+      mr.sparepart_subtotal = parseFloat(mr.sparepart_subtotal) || 0;
+      mr.services_subtotal = parseFloat(mr.services_subtotal) || 0;
+      mr.subtotal = parseFloat(mr.subtotal) || 0;
+      mr.discount = parseFloat(mr.discount) || 0;
+      mr.grandtotal = parseFloat(mr.grandtotal) || 0;
+    });
+    state.detail_receipt_services.forEach((drs: any) => drs.price = parseFloat(drs.price) || 0);
+    state.detail_receipt_spareparts.forEach((drp: any) => {
+      drp.unit_price = parseFloat(drp.unit_price) || 0;
+      drp.subtotal = parseFloat(drp.subtotal) || 0;
+    });
+    state.purchase_details.forEach((pd: any) => {
+      pd.unit_price = parseFloat(pd.unit_price) || 0;
+      pd.subtotal = parseFloat(pd.subtotal) || 0;
+    });
+
+    inMemoryDb = state;
+    console.log("✅ Database state successfully loaded from Supabase! Memory cache populated.");
+  } catch (err: any) {
+    console.warn("⚠️ [Supabase Fallback] Could not load state from Supabase. Defaulting to local data_store.json.");
+    if (err.message && err.message.includes("password authentication failed")) {
+      console.warn("   Reason: Password authentication failed for user 'postgres'. Please verify your DATABASE_URL password in settings.");
+    } else if (err.message && err.message.includes("does not exist")) {
+      console.warn("   Reason: One or more tables do not exist in the database yet. Make sure you run the draft file /SUPABASE_SCHEMA.sql inside Supabase's SQL Editor!");
+    } else {
+      console.warn(`   Reason: ${err.message || err}`);
+    }
+    // Set pool and memory cache back to null so future write attempts fall back gracefully
+    pool = null;
+    inMemoryDb = null;
+  }
+}
+
+// Background sync tables
+async function syncTableToPostgres(tableName: string, rows: any[], primaryKey: string) {
+  if (!pool) return;
+  try {
+    for (const row of rows) {
+      const keys = Object.keys(row).filter(k => row[k] !== undefined && row[k] !== null);
+      if (keys.length === 0) continue;
+      
+      const values = keys.map(k => row[k]);
+      const setClause = keys.map((k, i) => `"${k}" = $${i + 1}`).join(", ");
+      const columns = keys.map(k => `"${k}"`).join(", ");
+      const placeholders = keys.map((_, i) => `$${i + 1}`).join(", ");
+      
+      const query = `
+        INSERT INTO "${tableName}" (${columns})
+        VALUES (${placeholders})
+        ON CONFLICT ("${primaryKey}")
+        DO UPDATE SET ${setClause}
+      `;
+      await pool.query(query, values);
+    }
+  } catch (err) {
+    console.error(`Error syncing table ${tableName} to PostgreSQL:`, err);
+  }
+}
+
+async function syncAllToPostgres(db: any) {
+  if (!pool) return;
+  try {
+    // Sync sequentially to satisfy foreign key constraints
+    await syncTableToPostgres("roles", db.roles || [], "role_id");
+    await syncTableToPostgres("employees", db.employees || [], "employee_id");
+    await syncTableToPostgres("customers", db.customers || [], "customers_id");
+    await syncTableToPostgres("vehicle_categories", db.vehicle_categories || [], "vehicle_category_id");
+    await syncTableToPostgres("vehicles", db.vehicles || [], "vehicle_id");
+    await syncTableToPostgres("spareparts", db.spareparts || [], "sparepart_id");
+    await syncTableToPostgres("suppliers", db.suppliers || [], "supplier_id");
+    await syncTableToPostgres("variants", db.variants || [], "variant_id");
+    await syncTableToPostgres("services", db.services || [], "service_id");
+    await syncTableToPostgres("services_details", db.services_details || [], "services_detail_id");
+    await syncTableToPostgres("work_orders", db.work_orders || [], "work_order_id");
+    await syncTableToPostgres("main_receipts", db.main_receipts || [], "receipt_number");
+    await syncTableToPostgres("purchases", db.purchases || [], "purchase_id");
+    await syncTableToPostgres("stock_movements", db.stock_movements || [], "movement_id");
+
+    await syncTableToPostgres("detail_receipt_services", db.detail_receipt_services || [], "receipt_services_id");
+    await syncTableToPostgres("detail_receipt_spareparts", db.detail_receipt_spareparts || [], "receipt_sparepart_id");
+    await syncTableToPostgres("purchase_details", db.purchase_details || [], "purchase_detail_id");
+  } catch (err) {
+    console.error("Failed to sync state to PostgreSQL:", err);
+  }
+}
+
 // Read helper
 function readDb() {
+  if (inMemoryDb) {
+    return inMemoryDb;
+  }
   try {
     if (!fs.existsSync(DATA_FILE)) {
       // Re-create if missing
@@ -36,10 +188,12 @@ function readDb() {
       };
       fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
       fs.writeFileSync(DATA_FILE, JSON.stringify(initial, null, 2), "utf-8");
+      inMemoryDb = initial;
       return initial;
     }
     const content = fs.readFileSync(DATA_FILE, "utf-8");
-    return JSON.parse(content);
+    inMemoryDb = JSON.parse(content);
+    return inMemoryDb;
   } catch (error) {
     console.error("Error reading db", error);
     return {};
@@ -48,10 +202,15 @@ function readDb() {
 
 // Write helper
 function writeDb(data: any) {
+  inMemoryDb = data;
   try {
     fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
   } catch (error) {
     console.error("Error writing db", error);
+  }
+  // Sync to PostgreSQL synchronously (or background task)
+  if (pool) {
+    syncAllToPostgres(data);
   }
 }
 
@@ -1094,6 +1253,10 @@ app.post("/api/stock-movements", (req, res) => {
 // ==========================================
 
 async function startServer() {
+  if (pool) {
+    await loadFromPostgres();
+  }
+
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
       server: { middlewareMode: true },
