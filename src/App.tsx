@@ -16,11 +16,13 @@ import {
   Server,
   LogOut,
   Settings,
-  Truck
+  Truck,
+  Database
 } from "lucide-react";
 
 // Import modular panels
 import Dashboard from "./components/Dashboard";
+import SupabaseExport from "./components/SupabaseExport";
 import Customers from "./components/Customers";
 import Vehicles from "./components/Vehicles";
 import Employees from "./components/Employees";
@@ -205,7 +207,8 @@ export default function App() {
     { id: "purchases", label: "Pengadaan (PO)", icon: ShoppingBag },
     { id: "receipts", label: "Kasir POS & Nota", icon: Receipt },
     { id: "stock-movements", label: "Buku Mutasi Stok", icon: History },
-    { id: "employees", label: "Karyawan & Gaji", icon: Users }
+    { id: "employees", label: "Karyawan & Gaji", icon: Users },
+    { id: "supabase", label: "Integrasi Supabase", icon: Database }
   ];
 
   return (
@@ -460,6 +463,28 @@ export default function App() {
                 onAddDetail={(p) => executePost("/api/services-details", p)}
                 onEditDetail={(id, p) => executePut(`/api/services-details/${id}`, p)}
                 onDeleteDetail={(id) => executeDelete(`/api/services-details/${id}`)}
+              />
+            )}
+
+            {activeTab === "supabase" && (
+              <SupabaseExport
+                roles={roles}
+                employees={employees}
+                customers={customers}
+                categories={categories}
+                vehicles={vehicles}
+                spareparts={spareparts}
+                suppliers={suppliers}
+                variants={variants}
+                services={services}
+                services_details={servicesDetails}
+                work_orders={workOrders}
+                main_receipts={receipts}
+                detail_receipt_services={[]}
+                detail_receipt_spareparts={[]}
+                purchases={purchases}
+                purchase_details={[]}
+                stock_movements={movements}
               />
             )}
           </>
