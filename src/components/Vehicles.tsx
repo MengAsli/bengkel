@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Vehicle, Customer, VehicleCategory } from "../types";
 import { Search, Plus, Edit2, Trash2, Shield, Calendar, User, X, Hash } from "lucide-react";
+import ConfirmModal from "./ConfirmModal";
 
 interface VehiclesProps {
   vehicles: Vehicle[];
@@ -26,6 +27,10 @@ export default function Vehicles({
   const [catModalOpen, setCatModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<Vehicle | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Deletion Confirm Modal States
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [idToDelete, setIdToDelete] = useState<number | null>(null);
 
   // Vehicle Form fields
   const [customerId, setCustomerId] = useState("");
@@ -117,9 +122,15 @@ export default function Vehicles({
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (confirm("Apakah Anda yakin ingin menghapus data kendaraan ini?")) {
-      await onDelete(id);
+  const handleDelete = (id: number) => {
+    setIdToDelete(id);
+    setConfirmOpen(true);
+  };
+
+  const executeDeleteData = async () => {
+    if (idToDelete !== null) {
+      await onDelete(idToDelete);
+      setIdToDelete(null);
     }
   };
 
@@ -401,6 +412,20 @@ export default function Vehicles({
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title="Hapus Kendaraan"
+        message="Apakah Anda yakin ingin menghapus data kendaraan ini dari sistem? Tindakan ini tidak dapat dibatalkan secara langsung."
+        onConfirm={executeDeleteData}
+        onCancel={() => {
+          setConfirmOpen(false);
+          setIdToDelete(null);
+        }}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        variant="danger"
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Employee, Role } from "../types";
 import { Search, Plus, Edit2, Trash2, Users, Phone, Shield, CreditCard, X, User, Briefcase, DollarSign, Layers } from "lucide-react";
+import ConfirmModal from "./ConfirmModal";
 
 interface EmployeesProps {
   employees: Employee[];
@@ -25,6 +26,16 @@ export default function Employees({
 }: EmployeesProps) {
   const [activeSubTab, setActiveSubTab] = useState<"employees" | "roles">("employees");
   const [loading, setLoading] = useState(false);
+
+  // Deletion Confirm Modal States
+  const [empConfirmOpen, setEmpConfirmOpen] = useState(false);
+  const [empIdToDelete, setEmpIdToDelete] = useState<number | null>(null);
+  
+  const [roleConfirmOpen, setRoleConfirmOpen] = useState(false);
+  const [roleIdToDelete, setRoleIdToDelete] = useState<number | null>(null);
+  
+  const [warningModalOpen, setWarningModalOpen] = useState(false);
+  const [warningMessage, setWarningMessage] = useState("");
 
   // ----------------------------------------------------
   // EMPLOYEE STATE & FORM
@@ -123,12 +134,20 @@ export default function Employees({
     }
   };
 
-  const handleEmployeeDelete = async (id: number) => {
-    if (confirm("Apakah anda yakin ingin memberhentikan karyawan ini dari sistem?")) {
+  const handleEmployeeDelete = (id: number) => {
+    setEmpIdToDelete(id);
+    setEmpConfirmOpen(true);
+  };
+
+  const executeEmployeeDelete = async () => {
+    if (empIdToDelete !== null) {
       try {
-        await onDelete(id);
+        await onDelete(empIdToDelete);
       } catch (err: any) {
-        alert(err.message || "Gagal menghapus karyawan.");
+        setWarningMessage(err.message || "Gagal menghapus karyawan.");
+        setWarningModalOpen(true);
+      } finally {
+        setEmpIdToDelete(null);
       }
     }
   };
@@ -190,19 +209,27 @@ export default function Employees({
     }
   };
 
-  const handleRoleDelete = async (id: number) => {
+  const handleRoleDelete = (id: number) => {
     const assignedCount = getEmployeeCountForRole(id);
     if (assignedCount > 0) {
-      alert(`Tidak bisa menghapus peran ini karena masih digunakan oleh ${assignedCount} karyawan aktif! Harap ubah dulu peran karyawan tersebut.`);
+      setWarningMessage(`Tidak bisa menghapus peran ini karena masih digunakan oleh ${assignedCount} karyawan aktif! Harap ubah dulu peran karyawan tersebut.`);
+      setWarningModalOpen(true);
       return;
     }
 
-    if (confirm("Apakah Anda yakin ingin menghapus peran (role) ini dari database?")) {
+    setRoleIdToDelete(id);
+    setRoleConfirmOpen(true);
+  };
+
+  const executeRoleDelete = async () => {
+    if (roleIdToDelete !== null) {
       try {
         setRoleErrorMsg("");
-        await onDeleteRole(id);
+        await onDeleteRole(roleIdToDelete);
       } catch (err: any) {
         setRoleErrorMsg(err.message || "Gagal menghapus peran/role.");
+      } finally {
+        setRoleIdToDelete(null);
       }
     }
   };
@@ -667,6 +694,48 @@ export default function Employees({
           </div>
         </div>
       )}
+
+      {/* Employee Deletion Confirm */}
+      <ConfirmModal
+        isOpen={empConfirmOpen}
+        title="Pemberhentian Karyawan"
+        message="Apakah Anda yakin ingin menonaktifkan atau memberhentikan karyawan ini dari sistem?"
+        onConfirm={executeEmployeeDelete}
+        onCancel={() => {
+          setEmpConfirmOpen(false);
+          setEmpIdToDelete(null);
+        }}
+        confirmText="Ya, Berhentikan"
+        cancelText="Batal"
+        variant="danger"
+      />
+
+      {/* Role Deletion Confirm */}
+      <ConfirmModal
+        isOpen={roleConfirmOpen}
+        title="Hapus Peran (Role)"
+        message="Apakah Anda yakin ingin menghapus peran/role ini dari database? Tindakan ini permanen."
+        onConfirm={executeRoleDelete}
+        onCancel={() => {
+          setRoleConfirmOpen(false);
+          setRoleIdToDelete(null);
+        }}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        variant="danger"
+      />
+
+      {/* Warning/Restriction Modal */}
+      <ConfirmModal
+        isOpen={warningModalOpen}
+        title="Tindakan Ditolak"
+        message={warningMessage}
+        onConfirm={() => setWarningModalOpen(false)}
+        onCancel={() => setWarningModalOpen(false)}
+        confirmText="Dimengerti"
+        cancelText="Tutup"
+        variant="warning"
+      />
     </div>
   );
 }

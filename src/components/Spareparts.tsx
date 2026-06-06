@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Sparepart, Variant, VehicleCategory, Supplier } from "../types";
 import { Search, Plus, Edit2, Trash2, Box, RefreshCw, BarChart2, ShieldAlert, X } from "lucide-react";
+import ConfirmModal from "./ConfirmModal";
 
 interface SparepartsProps {
   spareparts: Sparepart[];
@@ -38,6 +39,12 @@ export default function Spareparts({
   // Selection/Edits target pointers
   const [editPart, setEditPart] = useState<Sparepart | null>(null);
   const [editVariant, setEditVariant] = useState<Variant | null>(null);
+
+  // Deletion Confirm Modal States
+  const [confirmPartOpen, setConfirmPartOpen] = useState(false);
+  const [idPartToDelete, setIdPartToDelete] = useState<number | null>(null);
+  const [confirmVariantOpen, setConfirmVariantOpen] = useState(false);
+  const [idVariantToDelete, setIdVariantToDelete] = useState<number | null>(null);
   const [adjustTarget, setAdjustTarget] = useState<Variant | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -212,15 +219,27 @@ export default function Spareparts({
     }
   };
 
-  const handleDeletePart = async (id: number) => {
-    if (confirm("Hapus master grup suku cadang ini?")) {
-      await onDeletePart(id);
+  const handleDeletePart = (id: number) => {
+    setIdPartToDelete(id);
+    setConfirmPartOpen(true);
+  };
+
+  const executeDeletePart = async () => {
+    if (idPartToDelete !== null) {
+      await onDeletePart(idPartToDelete);
+      setIdPartToDelete(null);
     }
   };
 
-  const handleDeleteVariant = async (id: number) => {
-    if (confirm("Hapus item spesifik suku cadang ini?")) {
-      await onDeleteVariant(id);
+  const handleDeleteVariant = (id: number) => {
+    setIdVariantToDelete(id);
+    setConfirmVariantOpen(true);
+  };
+
+  const executeDeleteVariant = async () => {
+    if (idVariantToDelete !== null) {
+      await onDeleteVariant(idVariantToDelete);
+      setIdVariantToDelete(null);
     }
   };
 
@@ -709,6 +728,36 @@ export default function Spareparts({
           </div>
         </div>
       )}
+
+      {/* Part master delete confirm */}
+      <ConfirmModal
+        isOpen={confirmPartOpen}
+        title="Hapus Master Kategori Suku Cadang"
+        message="Apakah Anda yakin ingin menghapus master grup kategori barang suku cadang ini?"
+        onConfirm={executeDeletePart}
+        onCancel={() => {
+          setConfirmPartOpen(false);
+          setIdPartToDelete(null);
+        }}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        variant="danger"
+      />
+
+      {/* Variant item delete confirm */}
+      <ConfirmModal
+        isOpen={confirmVariantOpen}
+        title="Hapus Item Suku Cadang"
+        message="Apakah Anda yakin ingin menghapus detail produk item suku cadang ini?"
+        onConfirm={executeDeleteVariant}
+        onCancel={() => {
+          setConfirmVariantOpen(false);
+          setIdVariantToDelete(null);
+        }}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        variant="danger"
+      />
     </div>
   );
 }

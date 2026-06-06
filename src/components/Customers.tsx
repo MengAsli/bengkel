@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Customer } from "../types";
 import { Search, Plus, Edit2, Trash2, Mail, Phone, MapPin, X, User } from "lucide-react";
+import ConfirmModal from "./ConfirmModal";
 
 interface CustomersProps {
   customers: Customer[];
@@ -14,6 +15,10 @@ export default function Customers({ customers, onAdd, onEdit, onDelete }: Custom
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Deletion Confirm Modal States
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [idToDelete, setIdToDelete] = useState<number | null>(null);
 
   // Form Fields
   const [name, setName] = useState("");
@@ -70,9 +75,15 @@ export default function Customers({ customers, onAdd, onEdit, onDelete }: Custom
     }
   };
 
-  const handleDelete = async (id: number) => {
-    if (confirm("Apakah Anda yakin ingin menghapus pelanggan ini dari sistem?")) {
-      await onDelete(id);
+  const handleDelete = (id: number) => {
+    setIdToDelete(id);
+    setConfirmOpen(true);
+  };
+
+  const executeDeleteData = async () => {
+    if (idToDelete !== null) {
+      await onDelete(idToDelete);
+      setIdToDelete(null);
     }
   };
 
@@ -257,6 +268,20 @@ export default function Customers({ customers, onAdd, onEdit, onDelete }: Custom
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title="Hapus Pelanggan"
+        message="Apakah Anda yakin ingin menghapus pelanggan ini dari sistem? Tindakan ini tidak dapat dibatalkan secara langsung."
+        onConfirm={executeDeleteData}
+        onCancel={() => {
+          setConfirmOpen(false);
+          setIdToDelete(null);
+        }}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        variant="danger"
+      />
     </div>
   );
 }

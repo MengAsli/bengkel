@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Purchase, Supplier, Variant } from "../types";
 import { Search, Plus, Check, MapPin, Inbox, X, Calendar, Clipboard, ListPlus, Trash2 } from "lucide-react";
+import ConfirmModal from "./ConfirmModal";
 
 interface PurchasesProps {
   purchases: Purchase[];
@@ -20,6 +21,10 @@ export default function Purchases({
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Deletion/Action Confirm Modal States
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [idToConfirm, setIdToConfirm] = useState<number | null>(null);
 
   // Form Fields
   const [supplierId, setSupplierId] = useState("");
@@ -108,9 +113,15 @@ export default function Purchases({
     }
   };
 
-  const handleConfirmArrival = async (id: number) => {
-    if (confirm("Apakah Anda yakin kiriman suku cadang ini telah diterima di garasi? Stok fisik produk akan bertambah secara otomatis.")) {
-      await onReceivePurchase(id);
+  const handleConfirmArrival = (id: number) => {
+    setIdToConfirm(id);
+    setConfirmOpen(true);
+  };
+
+  const executeConfirmArrival = async () => {
+    if (idToConfirm !== null) {
+      await onReceivePurchase(idToConfirm);
+      setIdToConfirm(null);
     }
   };
 
@@ -358,6 +369,21 @@ export default function Purchases({
           </div>
         </div>
       )}
+
+      {/* Arrival Confirm Modal */}
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title="Konfirmasi Kedatangan Barang"
+        message="Apakah Anda yakin kiriman suku cadang ini telah diterima di garasi? Stok fisik produk akan bertambah secara otomatis."
+        onConfirm={executeConfirmArrival}
+        onCancel={() => {
+          setConfirmOpen(false);
+          setIdToConfirm(null);
+        }}
+        confirmText="Ya, Diterima"
+        cancelText="Batal"
+        variant="info"
+      />
     </div>
   );
 }

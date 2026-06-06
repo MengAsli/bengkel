@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Service, ServiceDetail, VehicleCategory } from "../types";
 import { Search, Plus, Edit2, Trash2, ShieldCheck, Heart, X, Sparkles } from "lucide-react";
+import ConfirmModal from "./ConfirmModal";
 
 interface ServicesProps {
   services: Service[];
@@ -32,6 +33,12 @@ export default function Services({
   const [editService, setEditService] = useState<Service | null>(null);
   const [editDetail, setEditDetail] = useState<ServiceDetail | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Deletion Confirm Modal States
+  const [confirmServiceOpen, setConfirmServiceOpen] = useState(false);
+  const [idServiceToDelete, setIdServiceToDelete] = useState<number | null>(null);
+  const [confirmDetailOpen, setConfirmDetailOpen] = useState(false);
+  const [idDetailToDelete, setIdDetailToDelete] = useState<number | null>(null);
 
   // Master Service form fields
   const [serviceName, setServiceName] = useState("");
@@ -132,15 +139,27 @@ export default function Services({
     }
   };
 
-  const handleDeleteService = async (id: number) => {
-    if (confirm("Hapus grup paket layanan jasa ini?")) {
-      await onDeleteService(id);
+  const handleDeleteService = (id: number) => {
+    setIdServiceToDelete(id);
+    setConfirmServiceOpen(true);
+  };
+
+  const executeDeleteService = async () => {
+    if (idServiceToDelete !== null) {
+      await onDeleteService(idServiceToDelete);
+      setIdServiceToDelete(null);
     }
   };
 
-  const handleDeleteDetail = async (id: number) => {
-    if (confirm("Hapus pemetaan tarif jasa ini?")) {
-      await onDeleteDetail(id);
+  const handleDeleteDetail = (id: number) => {
+    setIdDetailToDelete(id);
+    setConfirmDetailOpen(true);
+  };
+
+  const executeDeleteDetail = async () => {
+    if (idDetailToDelete !== null) {
+      await onDeleteDetail(idDetailToDelete);
+      setIdDetailToDelete(null);
     }
   };
 
@@ -432,6 +451,36 @@ export default function Services({
           </div>
         </div>
       )}
+
+      {/* Service master delete confirm */}
+      <ConfirmModal
+        isOpen={confirmServiceOpen}
+        title="Hapus Master Layanan Jasa"
+        message="Apakah Anda yakin ingin menghapus grup paket layanan jasa ini dari sistem?"
+        onConfirm={executeDeleteService}
+        onCancel={() => {
+          setConfirmServiceOpen(false);
+          setIdServiceToDelete(null);
+        }}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        variant="danger"
+      />
+
+      {/* Details tariff mapping delete confirm */}
+      <ConfirmModal
+        isOpen={confirmDetailOpen}
+        title="Hapus Pemetaan Tarif"
+        message="Apakah Anda yakin ingin menghapus pemetaan tarif jasa untuk jenis kendaraan ini? Tindakan ini tidak dapat dibatalkan secara langsung."
+        onConfirm={executeDeleteDetail}
+        onCancel={() => {
+          setConfirmDetailOpen(false);
+          setIdDetailToDelete(null);
+        }}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        variant="danger"
+      />
     </div>
   );
 }

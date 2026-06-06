@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Supplier, Variant } from "../types";
 import { Search, Plus, Edit2, Trash2, ShieldAlert, Phone, Mail, MapPin, X, Store, Calendar, Users } from "lucide-react";
+import ConfirmModal from "./ConfirmModal";
 
 interface SuppliersProps {
   suppliers: Supplier[];
@@ -21,6 +22,12 @@ export default function Suppliers({
   const [searchTerm, setSearchTerm] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [editItem, setEditItem] = useState<Supplier | null>(null);
+
+  // Deletion Confirm Modal States
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [idToDelete, setIdToDelete] = useState<number | null>(null);
+  const [warningModalOpen, setWarningModalOpen] = useState(false);
+  const [warningMessage, setWarningMessage] = useState("");
 
   // Form Fields
   const [name, setName] = useState("");
@@ -95,18 +102,27 @@ export default function Suppliers({
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = (id: number) => {
     const productsCount = getProductCountForSupplier(id);
     if (productsCount > 0) {
-      alert(`Tidak bisa menghapus supplier ini karena masih mensuplai ${productsCount} item suku cadang aktif! Harap ubah/pindahkan item suku cadang tersebut terlebih dahulu.`);
+      setWarningMessage(`Tidak bisa menghapus supplier ini karena masih mensuplai ${productsCount} item suku cadang aktif! Harap ubah/pindahkan item suku cadang tersebut terlebih dahulu.`);
+      setWarningModalOpen(true);
       return;
     }
 
-    if (confirm("Apakah anda yakin ingin menghapus data supplier ini dari Bikini Bottom Garage?")) {
+    setIdToDelete(id);
+    setConfirmOpen(true);
+  };
+
+  const executeDeleteData = async () => {
+    if (idToDelete !== null) {
       try {
-        await onDelete(id);
+        await onDelete(idToDelete);
       } catch (err: any) {
-        alert(err.message || "Gagal menghapus supplier.");
+        setWarningMessage(err.message || "Gagal menghapus supplier.");
+        setWarningModalOpen(true);
+      } finally {
+        setIdToDelete(null);
       }
     }
   };
@@ -351,6 +367,32 @@ export default function Suppliers({
         </div>
       )}
 
+      {/* Supplier delete confirm modal */}
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title="Hapus Supplier"
+        message="Apakah Anda yakin ingin menghapus data supplier ini dari sistem?"
+        onConfirm={executeDeleteData}
+        onCancel={() => {
+          setConfirmOpen(false);
+          setIdToDelete(null);
+        }}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        variant="danger"
+      />
+
+      {/* Supplier warning/restriction modal */}
+      <ConfirmModal
+        isOpen={warningModalOpen}
+        title="Tindakan Ditolak"
+        message={warningMessage}
+        onConfirm={() => setWarningModalOpen(false)}
+        onCancel={() => setWarningModalOpen(false)}
+        confirmText="Dimengerti"
+        cancelText="Tutup"
+        variant="warning"
+      />
     </div>
   );
 }
