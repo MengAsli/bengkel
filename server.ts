@@ -137,7 +137,62 @@ app.get("/api/dashboard", (req, res) => {
 // Roles & Salary configuration
 app.get("/api/roles", (req, res) => {
   const db = readDb();
-  res.json(db.roles || []);
+  res.json((db.roles || []).filter((r: any) => !r.deleted_at));
+});
+
+app.post("/api/roles", (req, res) => {
+  const db = readDb();
+  if (!db.roles) db.roles = [];
+  const nextId = db.roles.length > 0 ? Math.max(...db.roles.map((r: any) => r.role_id)) + 1 : 1;
+  const newRole = {
+    role_id: nextId,
+    role_name: req.body.role_name,
+    salary: parseFloat(req.body.salary) || 0,
+    created_at: new Date().toISOString(),
+    updated_at: null,
+    deleted_at: null
+  };
+  db.roles.push(newRole);
+  writeDb(db);
+  res.status(201).json(newRole);
+});
+
+app.put("/api/roles/:id", (req, res) => {
+  const db = readDb();
+  const id = parseInt(req.params.id);
+  const index = db.roles.findIndex((r: any) => r.role_id === id);
+  if (index !== -1) {
+    db.roles[index] = {
+      ...db.roles[index],
+      role_name: req.body.role_name,
+      salary: parseFloat(req.body.salary) || 0,
+      updated_at: new Date().toISOString()
+    };
+    writeDb(db);
+    res.json(db.roles[index]);
+  } else {
+    res.status(404).json({ error: "Role not found" });
+  }
+});
+
+app.delete("/api/roles/:id", (req, res) => {
+  const db = readDb();
+  const id = parseInt(req.params.id);
+  
+  // Check if role is used by any active employees
+  const isUsed = db.employees.some((e: any) => e.role_id === id && !e.deleted_at);
+  if (isUsed) {
+    return res.status(400).json({ error: "Peran ini tidak bisa dihapus karena masih digunakan oleh staf karyawan aktif!" });
+  }
+
+  const index = db.roles.findIndex((r: any) => r.role_id === id);
+  if (index !== -1) {
+    db.roles[index].deleted_at = new Date().toISOString();
+    writeDb(db);
+    res.json({ success: true });
+  } else {
+    res.status(404).json({ error: "Role not found" });
+  }
 });
 
 // Customers CRUD

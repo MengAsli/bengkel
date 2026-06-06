@@ -15,7 +15,8 @@ import {
   Sparkles,
   Server,
   LogOut,
-  Settings
+  Settings,
+  Truck
 } from "lucide-react";
 
 // Import modular panels
@@ -29,6 +30,7 @@ import Receipts from "./components/Receipts";
 import Purchases from "./components/Purchases";
 import StockMovements from "./components/StockMovements";
 import Services from "./components/Services";
+import Suppliers from "./components/Suppliers";
 import garageLogo from "./assets/images/garage_logo_1780761158501.png";
 
 import { 
@@ -173,7 +175,11 @@ export default function App() {
   };
 
   const executeDelete = async (url: string) => {
-    await fetch(url, { method: "DELETE" });
+    const res = await fetch(url, { method: "DELETE" });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || "Gagal menghapus data.");
+    }
     await loadAllData();
   };
 
@@ -192,6 +198,7 @@ export default function App() {
     { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { id: "work-orders", label: "Perintah Kerja (WO)", icon: Wrench },
     { id: "customers", label: "Pelanggan", icon: Users2 },
+    { id: "suppliers", label: "Supplier", icon: Truck },
     { id: "vehicles", label: "Armada Motor", icon: Compass },
     { id: "services", label: "Jasa & Tarif", icon: Settings },
     { id: "spareparts", label: "Suku Cadang & Stok", icon: Box },
@@ -351,6 +358,16 @@ export default function App() {
               />
             )}
 
+            {activeTab === "suppliers" && (
+              <Suppliers
+                suppliers={suppliers}
+                variants={variants}
+                onAdd={(p) => executePost("/api/suppliers", p)}
+                onEdit={(id, p) => executePut(`/api/suppliers/${id}`, p)}
+                onDelete={(id) => executeDelete(`/api/suppliers/${id}`)}
+              />
+            )}
+
             {activeTab === "vehicles" && (
               <Vehicles
                 vehicles={vehicles}
@@ -370,6 +387,9 @@ export default function App() {
                 onAdd={(p) => executePost("/api/employees", p)}
                 onEdit={(id, p) => executePut(`/api/employees/${id}`, p)}
                 onDelete={(id) => executeDelete(`/api/employees/${id}`)}
+                onAddRole={(p) => executePost("/api/roles", p)}
+                onEditRole={(id, p) => executePut(`/api/roles/${id}`, p)}
+                onDeleteRole={(id) => executeDelete(`/api/roles/${id}`)}
               />
             )}
 
